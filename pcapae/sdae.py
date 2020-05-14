@@ -20,7 +20,7 @@ def build_units(dimensions: Iterable[int],
                     idx: int) -> torch.nn.Module:
         unit = [('linear', nn.Linear(in_dimension, out_dimension))]
         if activation is not None:
-            unit.append(('dropout', nn.Dropout(0.2*idx)))
+            #unit.append(('dropout', nn.Dropout(0.2*idx)))
             unit.append(('activation', activation))
         return nn.Sequential(OrderedDict(unit))
 
