@@ -5,8 +5,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
-from dae import DenoisingAutoencoder
-from sdae import StackedDenoisingAutoEncoder
+from pcapae.pcapae.dae import DenoisingAutoencoder
+from pcapae.pcapae.sdae import StackedDenoisingAutoEncoder
 
 
 # to device ??
@@ -84,7 +84,8 @@ def train(dataset: torch.utils.data.Dataset,
                 'epo': epoch,
                 'lss': '%.6f' % 0.0,
                 'vls': '%.6f' % -1,
-                'index': '0'
+                'index': '0',
+                'batch': -1
             },
             disable=silent,
         )
@@ -108,7 +109,8 @@ def train(dataset: torch.utils.data.Dataset,
                 epo=epoch,
                 lss='%.6f' % loss_value,
                 vls='%.6f' % validation_loss_value,
-                index=f"{index}"
+                index=f"{index}",
+                batch=batch
             )
         if update_freq is not None and epoch % update_freq == 0:
             if validation_loader is not None:
@@ -208,8 +210,7 @@ def pretrain(dataset,
             embedding_dimension=embedding_dimension,
             hidden_dimension=hidden_dimension,
             activation=torch.nn.ReLU() if index != (number_of_subautoencoders - 1) else None,
-            corruption=nn.Dropout(corruption) if corruption is not None else None,
-        )
+            corruption=nn.Dropout(corruption) if corruption is not None else None)
         if cuda:
             sub_autoencoder = sub_autoencoder.cuda()
         ae_optimizer = optimizer(sub_autoencoder)
@@ -234,7 +235,7 @@ def pretrain(dataset,
         )
         # copy the weights
         sub_autoencoder.copy_weights(encoder, decoder)
-        tqdm.tqdm.write(index)
+        tqdm.write(index)
         # # pass the dataset through the encoder part of the subautoencoder
         # if index != (number_of_subautoencoders - 1):
         #     current_dataset = TensorDataset(
