@@ -74,8 +74,6 @@ def train(dataset: torch.utils.data.Dataset,
     validation_loss_value = -1
     loss_value = 0
     for epoch in range(epochs):
-        if scheduler is not None:
-            scheduler.step()
         data_iterator = tqdm(
             dataloader,
             leave=True,
@@ -84,8 +82,7 @@ def train(dataset: torch.utils.data.Dataset,
                 'epo': epoch,
                 'lss': '%.6f' % 0.0,
                 'vls': '%.6f' % -1,
-                'index': '0',
-                'batch': -1
+                'index': '0'
             },
             disable=silent,
         )
@@ -105,12 +102,13 @@ def train(dataset: torch.utils.data.Dataset,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step(closure=None)
+            if scheduler is not None:
+                scheduler.step()
             data_iterator.set_postfix(
                 epo=epoch,
                 lss='%.6f' % loss_value,
                 vls='%.6f' % validation_loss_value,
-                index=f"{index}",
-                batch=batch
+                index=f"{index}"
             )
         if update_freq is not None and epoch % update_freq == 0:
             if validation_loader is not None:
@@ -199,6 +197,7 @@ def pretrain(dataset,
     current_validation = validation
     number_of_subautoencoders = len(autoencoder.dimensions) - 1
     for index in range(number_of_subautoencoders):
+        # tqdm.write(index)
         encoder, decoder = autoencoder.get_stack(index)
         embedding_dimension = autoencoder.dimensions[index]
         hidden_dimension = autoencoder.dimensions[index + 1]
@@ -210,7 +209,8 @@ def pretrain(dataset,
             embedding_dimension=embedding_dimension,
             hidden_dimension=hidden_dimension,
             activation=torch.nn.ReLU() if index != (number_of_subautoencoders - 1) else None,
-            corruption=nn.Dropout(corruption) if corruption is not None else None)
+            corruption=nn.Dropout(corruption) if corruption is not None else None,
+        )
         if cuda:
             sub_autoencoder = sub_autoencoder.cuda()
         ae_optimizer = optimizer(sub_autoencoder)
@@ -235,7 +235,7 @@ def pretrain(dataset,
         )
         # copy the weights
         sub_autoencoder.copy_weights(encoder, decoder)
-        tqdm.write(index)
+        
         # # pass the dataset through the encoder part of the subautoencoder
         # if index != (number_of_subautoencoders - 1):
         #     current_dataset = TensorDataset(
