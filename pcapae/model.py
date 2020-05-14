@@ -71,7 +71,7 @@ def train(dataset: torch.utils.data.Dataset,
     loss_function = criterion
     #nn.L1Loss(reduction='sum')
     autoencoder.train()
-    validation_loss_value = -1
+
     loss_value = 0
     for epoch in range(epochs):
         data_iterator = tqdm(
@@ -81,11 +81,12 @@ def train(dataset: torch.utils.data.Dataset,
             postfix={
                 'epo': epoch,
                 'lss': '%.6f' % 0.0,
-                'vls': '%.6f' % -1,
                 'index': '0'
             },
             disable=silent,
         )
+        if scheduler is not None:
+            scheduler.step()
         for index, batch in enumerate(data_iterator):
             if isinstance(batch, tuple) or isinstance(batch, list) and len(batch) in [1, 2]:
                 batch = batch[0]
@@ -102,53 +103,22 @@ def train(dataset: torch.utils.data.Dataset,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step(closure=None)
-            if scheduler is not None:
-                scheduler.step()
+            
             data_iterator.set_postfix(
                 epo=epoch,
                 lss='%.6f' % loss_value,
-                vls='%.6f' % validation_loss_value,
                 index=f"{index}"
             )
         if update_freq is not None and epoch % update_freq == 0:
-            if validation_loader is not None:
-                validation_output = predict(
-                    validation,
-                    autoencoder,
-                    batch_size,
-                    cuda=cuda,
-                    silent=True,
-                    encode=False
-                )
-                validation_inputs = []
-                for val_batch in validation_loader:
-                    if (isinstance(val_batch, tuple) or isinstance(val_batch, list)) and len(val_batch) in [1, 2]:
-                        validation_inputs.append(val_batch[0])
-                    else:
-                        validation_inputs.append(val_batch)
-                validation_actual = torch.cat(validation_inputs)
-                if cuda:
-                    validation_actual = validation_actual.cuda(non_blocking=True)
-                    validation_output = validation_output.cuda(non_blocking=True)
-                validation_loss = loss_function(validation_output, validation_actual)
-                # validation_accuracy = pretrain_accuracy(validation_output, validation_actual)
-                validation_loss_value = float(validation_loss.item())
-                data_iterator.set_postfix(
-                    epo=epoch,
-                    lss='%.6f' % loss_value,
-                    vls='%.6f' % validation_loss_value,
-                )
-                autoencoder.train()
-            else:
-                validation_loss_value = -1
-                # validation_accuracy = -1
-                data_iterator.set_postfix(
-                    epo=epoch,
-                    lss='%.6f' % loss_value,
-                    vls='%.6f' % -1,
-                )
+            data_iterator.set_postfix(
+                epo=epoch,
+                lss='%.6f' % loss_value,
+                vls='%.6f' % -1,
+            )
+            
             if update_callback is not None:
-                update_callback(epoch, optimizer.param_groups[0]['lr'], loss_value, validation_loss_value)
+                update_callback(epoch, optimizer.param_groups[0]['lr'], loss_value)
+        
         if epoch_callback is not None:
             autoencoder.eval()
             epoch_callback(epoch, autoencoder)
