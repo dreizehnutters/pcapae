@@ -5,8 +5,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
-from pcapae.dae import DenoisingAutoencoder
-from pcapae.sdae import StackedDenoisingAutoEncoder
+from dae import DenoisingAutoencoder
+from sdae import StackedDenoisingAutoEncoder
 
 
 # to device ??

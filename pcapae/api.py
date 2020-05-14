@@ -11,8 +11,8 @@ from torch.utils.data.dataset import TensorDataset
 from typing import Any, Callable
 from scipy.sparse import issparse
 
-from pcapae.sdae import StackedDenoisingAutoEncoder
-import pcapae.model as ae
+from sdae import StackedDenoisingAutoEncoder
+import model as ae
 
 
 class SDAETransformerBase(TransformerMixin, BaseEstimator):
