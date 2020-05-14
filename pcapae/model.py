@@ -5,14 +5,17 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
-from ptsdae.dae import DenoisingAutoencoder
-from ptsdae.sdae import StackedDenoisingAutoEncoder
+from pcapae.dae import DenoisingAutoencoder
+from pcapae.sdae import StackedDenoisingAutoEncoder
 
+
+# to device ??
 
 def train(dataset: torch.utils.data.Dataset,
           autoencoder: torch.nn.Module,
           epochs: int,
           batch_size: int,
+          criterion: torch.nn,
           optimizer: torch.optim.Optimizer,
           scheduler: Any = None,
           validation: Optional[torch.utils.data.Dataset] = None,
@@ -32,6 +35,7 @@ def train(dataset: torch.utils.data.Dataset,
     :param autoencoder: autoencoder to train
     :param epochs: number of training epochs
     :param batch_size: batch size for training
+    :param criterion: loss function to use
     :param optimizer: optimizer to use
     :param scheduler: scheduler to use, or None to disable, defaults to None
     :param corruption: proportion of masking corruption to apply, set to None to disable, defaults to None
@@ -63,7 +67,9 @@ def train(dataset: torch.utils.data.Dataset,
         )
     else:
         validation_loader = None
-    loss_function = nn.MSELoss()
+    #loss_function = nn.MSELoss()
+    loss_function = criterion
+    #nn.L1Loss(reduction='sum')
     autoencoder.train()
     validation_loss_value = -1
     loss_value = 0
@@ -78,6 +84,7 @@ def train(dataset: torch.utils.data.Dataset,
                 'epo': epoch,
                 'lss': '%.6f' % 0.0,
                 'vls': '%.6f' % -1,
+                'index': '0'
             },
             disable=silent,
         )
@@ -101,6 +108,7 @@ def train(dataset: torch.utils.data.Dataset,
                 epo=epoch,
                 lss='%.6f' % loss_value,
                 vls='%.6f' % validation_loss_value,
+                index=f"{index}"
             )
         if update_freq is not None and epoch % update_freq == 0:
             if validation_loader is not None:
@@ -151,6 +159,7 @@ def pretrain(dataset,
              autoencoder: StackedDenoisingAutoEncoder,
              epochs: int,
              batch_size: int,
+             criterion: torch.nn,
              optimizer: Callable[[torch.nn.Module], torch.optim.Optimizer],
              scheduler: Optional[Callable[[torch.optim.Optimizer], Any]] = None,
              validation: Optional[torch.utils.data.Dataset] = None,
@@ -210,6 +219,7 @@ def pretrain(dataset,
             sub_autoencoder,
             epochs,
             batch_size,
+            criterion,
             ae_optimizer,
             validation=current_validation,
             corruption=None,  # already have dropout in the DAE
@@ -224,30 +234,31 @@ def pretrain(dataset,
         )
         # copy the weights
         sub_autoencoder.copy_weights(encoder, decoder)
-        # pass the dataset through the encoder part of the subautoencoder
-        if index != (number_of_subautoencoders - 1):
-            current_dataset = TensorDataset(
-                predict(
-                    current_dataset,
-                    sub_autoencoder,
-                    batch_size,
-                    cuda=cuda,
-                    silent=silent
-                )
-            )
-            if current_validation is not None:
-                current_validation = TensorDataset(
-                    predict(
-                        current_validation,
-                        sub_autoencoder,
-                        batch_size,
-                        cuda=cuda,
-                        silent=silent
-                    )
-                )
-        else:
-            current_dataset = None  # minor optimisation on the last subautoencoder
-            current_validation = None
+        tqdm.tqdm.write(index)
+        # # pass the dataset through the encoder part of the subautoencoder
+        # if index != (number_of_subautoencoders - 1):
+        #     current_dataset = TensorDataset(
+        #         predict(
+        #             current_dataset,
+        #             sub_autoencoder,
+        #             batch_size,
+        #             cuda=cuda,
+        #             silent=silent
+        #         )
+        #     )
+        #     if current_validation is not None:
+        #         current_validation = TensorDataset(
+        #             predict(
+        #                 current_validation,
+        #                 sub_autoencoder,
+        #                 batch_size,
+        #                 cuda=cuda,
+        #                 silent=silent
+        #             )
+        #         )
+        # else:
+        #     current_dataset = None  # minor optimisation on the last subautoencoder
+        #     current_validation = None
 
 
 def predict(dataset: torch.utils.data.Dataset,
