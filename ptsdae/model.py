@@ -101,7 +101,7 @@ def train(dataset: torch.utils.data.Dataset,
             data_iterator.set_postfix(
                 epo=epoch,
                 lss='%.6f' % loss_value,
-                lr='%.6f' % scheduler.get_lr()
+                lr='%.6f' % scheduler.get_last_lr(),
                 vls='%.6f' % validation_loss_value,
             )
         if update_freq is not None and epoch % update_freq == 0:
