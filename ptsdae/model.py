@@ -81,6 +81,8 @@ def train(dataset: torch.utils.data.Dataset,
             disable=silent,
         )
         for index, batch in enumerate(data_iterator):
+            if scheduler is not None:
+                scheduler.step()
             if isinstance(batch, tuple) or isinstance(batch, list) and len(batch) in [1, 2]:
                 batch = batch[0]
             if cuda:
@@ -96,12 +98,10 @@ def train(dataset: torch.utils.data.Dataset,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step(closure=None)
-            if scheduler is not None:
-                scheduler.step()
             data_iterator.set_postfix(
                 epo=epoch,
                 lss='%.6f' % loss_value,
-                lr='%.6f' % scheduler.get_last_lr(),
+                lr='%.e' % scheduler.get_last_lr()[0],
                 vls='%.6f' % validation_loss_value,
             )
         if update_freq is not None and epoch % update_freq == 0:
