@@ -3,7 +3,13 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
+#from tqdm import tqdm
+from tqdm import tqdm as tqdm_base
+def tqdm(*args, **kwargs):
+    if hasattr(tqdm_base, '_instances'):
+        for instance in list(tqdm_base._instances):
+            tqdm_base._decr_instances(instance)
+    return tqdm_base(*args, **kwargs)
 
 from ptsdae.dae import DenoisingAutoencoder
 from ptsdae.sdae import StackedDenoisingAutoEncoder
@@ -13,6 +19,7 @@ def train(dataset: torch.utils.data.Dataset,
           autoencoder: torch.nn.Module,
           epochs: int,
           batch_size: int,
+          criterion: Optional[torch.nn.Module] = None,
           optimizer: torch.optim.Optimizer,
           scheduler: Any = None,
           validation: Optional[torch.utils.data.Dataset] = None,
@@ -32,6 +39,7 @@ def train(dataset: torch.utils.data.Dataset,
     :param autoencoder: autoencoder to train
     :param epochs: number of training epochs
     :param batch_size: batch size for training
+    :param criterion: loss function to use
     :param optimizer: optimizer to use
     :param scheduler: scheduler to use, or None to disable, defaults to None
     :param corruption: proportion of masking corruption to apply, set to None to disable, defaults to None
@@ -63,7 +71,11 @@ def train(dataset: torch.utils.data.Dataset,
         )
     else:
         validation_loader = None
-    loss_function = nn.MSELoss()
+
+    if criterion is None:
+        loss_function = nn.MSELoss()
+    else:
+        loss_function = criterion
     autoencoder.train()
     validation_loss_value = -1
     loss_value = 0
@@ -99,13 +111,13 @@ def train(dataset: torch.utils.data.Dataset,
             loss.backward()
             optimizer.step(closure=None)
             if scheduler is None:
-                lr = 0.1
+                lr = optimizer.param_groups[0]['lr']
             else:
                 lr = scheduler.get_last_lr()[0]
             data_iterator.set_postfix(
                 epo=epoch,
                 lss='%.6f' % loss_value,
-                lr='%.e' % lr,
+                lr='%.5e' % lr,
                 vls='%.6f' % validation_loss_value,
             )
         if update_freq is not None and epoch % update_freq == 0:
@@ -143,6 +155,7 @@ def train(dataset: torch.utils.data.Dataset,
                 data_iterator.set_postfix(
                     epo=epoch,
                     lss='%.6f' % loss_value,
+                    lr='%.5e' % lr,
                     vls='%.6f' % -1,
                 )
             if update_callback is not None:
@@ -157,6 +170,7 @@ def pretrain(dataset,
              autoencoder: StackedDenoisingAutoEncoder,
              epochs: int,
              batch_size: int,
+             criterion, Optional[Callable[torch.nn.Module]] = None,
              optimizer: Callable[[torch.nn.Module], torch.optim.Optimizer],
              scheduler: Optional[Callable[[torch.optim.Optimizer], Any]] = None,
              validation: Optional[torch.utils.data.Dataset] = None,
@@ -177,6 +191,7 @@ def pretrain(dataset,
     :param autoencoder: instance of an autoencoder to train
     :param epochs: number of training epochs
     :param batch_size: batch size for training
+    :param criterion: loss function to use
     :param corruption: proportion of masking corruption to apply, set to None to disable, defaults to None
     :param optimizer: function taking model and returning optimizer
     :param scheduler: function taking optimizer and returning scheduler, or None to disable
@@ -194,6 +209,7 @@ def pretrain(dataset,
     current_validation = validation
     number_of_subautoencoders = len(autoencoder.dimensions) - 1
     for index in range(number_of_subautoencoders):
+        print("layer:", index)
         encoder, decoder = autoencoder.get_stack(index)
         embedding_dimension = autoencoder.dimensions[index]
         hidden_dimension = autoencoder.dimensions[index + 1]
@@ -207,6 +223,7 @@ def pretrain(dataset,
             activation=torch.nn.ReLU() if index != (number_of_subautoencoders - 1) else None,
             corruption=nn.Dropout(corruption) if corruption is not None else None,
         )
+        sub_autoencoder.eval()
         if cuda:
             sub_autoencoder = sub_autoencoder.cuda()
         ae_optimizer = optimizer(sub_autoencoder)
@@ -216,6 +233,7 @@ def pretrain(dataset,
             sub_autoencoder,
             epochs,
             batch_size,
+            criterion=criterion,
             ae_optimizer,
             validation=current_validation,
             corruption=None,  # already have dropout in the DAE
