@@ -5,8 +5,7 @@ import torch
 import torch.nn as nn
 
 
-def build_units(dimensions: Iterable[int],
-                activation: Optional[torch.nn.Module]) -> List[torch.nn.Module]:
+def build_units(dimensions: Iterable[int], activation: Optional[torch.nn.Module]) -> List[torch.nn.Module]:
     """
     Given a list of dimensions and optional activation, return a list of units where each unit is a linear
     layer followed by an activation layer.
@@ -15,24 +14,19 @@ def build_units(dimensions: Iterable[int],
     :param activation: activation layer to use e.g. nn.ReLU, set to None to disable
     :return: list of instances of Sequential
     """
-    def single_unit(in_dimension: int,
-                    out_dimension: int,
-                    idx: int) -> torch.nn.Module:
+    def single_unit(in_dimension: int, out_dimension: int) -> torch.nn.Module:
         unit = [('linear', nn.Linear(in_dimension, out_dimension))]
         if activation is not None:
-            #unit.append(('dropout', nn.Dropout(0.2*idx)))
             unit.append(('activation', activation))
         return nn.Sequential(OrderedDict(unit))
-
     return [
-        single_unit(embedding_dimension, hidden_dimension, idx)
-        for idx, (embedding_dimension, hidden_dimension)
-        in enumerate(sliding_window(2, dimensions))
+        single_unit(embedding_dimension, hidden_dimension)
+        for embedding_dimension, hidden_dimension
+        in sliding_window(2, dimensions)
     ]
 
 
-def default_initialise_weight_bias_(weight: torch.Tensor,
-                                    bias: torch.Tensor, gain: float) -> None:
+def default_initialise_weight_bias_(weight: torch.Tensor, bias: torch.Tensor, gain: float) -> None:
     """
     Default function to initialise the weights in a the Linear units of the StackedDenoisingAutoEncoder.
 
@@ -68,17 +62,14 @@ class StackedDenoisingAutoEncoder(nn.Module):
         self.dimensions = dimensions
         self.embedding_dimension = dimensions[0]
         self.hidden_dimension = dimensions[-1]
-        
         # construct the encoder
         encoder_units = build_units(self.dimensions[:-1], activation)
         encoder_units.extend(build_units([self.dimensions[-2], self.dimensions[-1]], None))
         self.encoder = nn.Sequential(*encoder_units)
-        
         # construct the decoder
         decoder_units = build_units(reversed(self.dimensions[1:]), activation)
         decoder_units.extend(build_units([self.dimensions[1], self.dimensions[0]], final_activation))
         self.decoder = nn.Sequential(*decoder_units)
-        
         # initialise the weights and biases in the layers
         for layer in concat([self.encoder, self.decoder]):
             weight_init(layer[0].weight, layer[0].bias, gain)
