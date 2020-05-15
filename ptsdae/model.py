@@ -98,10 +98,14 @@ def train(dataset: torch.utils.data.Dataset,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step(closure=None)
+            if scheduler is None:
+                lr = 0.1
+            else:
+                lr = scheduler.get_last_lr()[0]
             data_iterator.set_postfix(
                 epo=epoch,
                 lss='%.6f' % loss_value,
-                lr='%.e' % scheduler.get_last_lr()[0],
+                lr='%.e' % lr,
                 vls='%.6f' % validation_loss_value,
             )
         if update_freq is not None and epoch % update_freq == 0:
@@ -226,30 +230,31 @@ def pretrain(dataset,
         )
         # copy the weights
         sub_autoencoder.copy_weights(encoder, decoder)
+        
         # pass the dataset through the encoder part of the subautoencoder
-        # if index != (number_of_subautoencoders - 1):
-        #     current_dataset = TensorDataset(
-        #         predict(
-        #             current_dataset,
-        #             sub_autoencoder,
-        #             batch_size,
-        #             cuda=cuda,
-        #             silent=silent
-        #         )
-        #     )
-        #     if current_validation is not None:
-        #         current_validation = TensorDataset(
-        #             predict(
-        #                 current_validation,
-        #                 sub_autoencoder,
-        #                 batch_size,
-        #                 cuda=cuda,
-        #                 silent=silent
-        #             )
-        #         )
-        # else:
-        #     current_dataset = None  # minor optimisation on the last subautoencoder
-        #     current_validation = None
+        if index != (number_of_subautoencoders - 1):
+            current_dataset = TensorDataset(
+                predict(
+                    current_dataset,
+                    sub_autoencoder,
+                    batch_size,
+                    cuda=cuda,
+                    silent=silent
+                )
+            )
+            if current_validation is not None:
+                current_validation = TensorDataset(
+                    predict(
+                        current_validation,
+                        sub_autoencoder,
+                        batch_size,
+                        cuda=cuda,
+                        silent=silent
+                    )
+                )
+        else:
+            current_dataset = None  # minor optimisation on the last subautoencoder
+            current_validation = None
 
 
 def predict(dataset: torch.utils.data.Dataset,
